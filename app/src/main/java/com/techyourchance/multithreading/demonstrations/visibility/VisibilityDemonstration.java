@@ -2,11 +2,17 @@ package com.techyourchance.multithreading.demonstrations.visibility;
 
 public class VisibilityDemonstration {
 
-    private static final Object LOCK = new Object();
+    private static class Counter {
+        private volatile int mCount = 0; // since this is volatile it is guaranteed that the two threads will read the correct value
+    }
 
-    private static int sCount = 0;
+    // the pointer to mCount is guaranteed to have happens-before relationship with the Threads, since the
+    // assignment happens before their start() methods have been called
+    private final static Counter sCount = new Counter(); // final here is optional, remove it and the behavior is still correct, but it is good practice to declare this as final
 
     public static void main(String[] args) {
+        // any reads or writes to the mCount variable is guaranteed to have a happens-before relationship, thus
+        // each thread sees the correct value
         new Consumer().start();
         try {
             Thread.sleep(100);
@@ -21,14 +27,12 @@ public class VisibilityDemonstration {
         public void run() {
             int localValue = -1;
             while (true) {
-                synchronized (LOCK) {
-                    if (localValue != sCount) {
-                        System.out.println("Consumer: detected count change " + sCount);
-                        localValue = sCount;
-                    }
-                    if (sCount >= 5) {
-                        break;
-                    }
+                if (localValue != sCount.mCount) {
+                    System.out.println("Consumer: detected count change " + sCount.mCount);
+                    localValue = sCount.mCount;
+                }
+                if (sCount.mCount >= 5) {
+                    break;
                 }
             }
             System.out.println("Consumer: terminating");
@@ -39,18 +43,13 @@ public class VisibilityDemonstration {
         @Override
         public void run() {
             while (true) {
-                synchronized (LOCK) { // hold this LOCK until the code inside synchronized block completes
-                    if(sCount >= 5) { // transferred read of sCount inside synchronized block to make code thread-safe
-                        break;
-                    }
-                    int localValue = sCount;
-                    localValue++;
-                    System.out.println("Producer: incrementing count to " + localValue);
-                    sCount = localValue;
+                if(sCount.mCount >= 5) {
+                    break;
                 }
-                // put Thread.sleep outside of synchronized block
-                // after LOCK is released, Thread will sleep for 1 sec and this should be enough
-                // time for Consumer to detect changes (i.e., acquire the LOCK)
+                int localValue = sCount.mCount;
+                localValue++;
+                System.out.println("Producer: incrementing count to " + localValue);
+                sCount.mCount = localValue;
                 try {
                     Thread.sleep(1000);
                 } catch (InterruptedException e) {
