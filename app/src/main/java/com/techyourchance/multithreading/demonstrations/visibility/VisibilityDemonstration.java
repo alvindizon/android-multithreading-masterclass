@@ -48,6 +48,14 @@ public class VisibilityDemonstration {
                     System.out.println("Producer: incrementing count to " + localValue);
                     sCount = localValue;
                 }
+                // put Thread.sleep outside of synchronized block
+                // after LOCK is released, Thread will sleep for 1 sec and this should be enough
+                // time for Consumer to detect changes (i.e., acquire the LOCK)
+                try {
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    return;
+                }
             }
             System.out.println("Producer: terminating");
         }
