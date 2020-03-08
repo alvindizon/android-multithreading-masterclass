@@ -4,6 +4,7 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -17,6 +18,9 @@ import com.techyourchance.multithreading.R;
 import com.techyourchance.multithreading.common.BaseFragment;
 
 import java.math.BigInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.function.UnaryOperator;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -29,9 +33,9 @@ public class Exercise4Fragment extends BaseFragment {
         return new Exercise4Fragment();
     }
 
-    private static int MAX_TIMEOUT_MS = DefaultConfiguration.DEFAULT_FACTORIAL_TIMEOUT_MS;
+    private final static int MAX_TIMEOUT_MS = DefaultConfiguration.DEFAULT_FACTORIAL_TIMEOUT_MS; // finalization ensures that the compiler completes initialization
 
-    private Handler mUiHandler = new Handler(Looper.getMainLooper());
+    private final Handler mUiHandler = new Handler(Looper.getMainLooper()); // finalization ensures that the compiler completes initialization
 
     private EditText mEdtArgument;
     private EditText mEdtTimeout;
@@ -40,12 +44,15 @@ public class Exercise4Fragment extends BaseFragment {
 
     private int mNumberOfThreads;
     private ComputationRange[] mThreadsComputationRanges;
-    private BigInteger[] mThreadsComputationResults;
     private int mNumOfFinishedThreads;
 
     private long mComputationTimeoutTime;
 
     private boolean mAbortComputation;
+    
+    AtomicReferenceArray<BigInteger> results;
+
+    private final Object LOCK = new Object();
 
     @Nullable
     @Override
@@ -125,7 +132,7 @@ public class Exercise4Fragment extends BaseFragment {
 
         mAbortComputation = false;
 
-        mThreadsComputationResults = new BigInteger[mNumberOfThreads];
+        results = new AtomicReferenceArray<>(mNumberOfThreads);
 
         mThreadsComputationRanges = new ComputationRange[mNumberOfThreads];
 
@@ -136,7 +143,6 @@ public class Exercise4Fragment extends BaseFragment {
 
     private void initThreadsComputationRanges(int factorialArgument) {
         int computationRangeSize = factorialArgument / mNumberOfThreads;
-
         long nextComputationRangeEnd = factorialArgument;
         for (int i = mNumberOfThreads - 1; i >= 0; i--) {
             mThreadsComputationRanges[i] = new ComputationRange(
@@ -154,22 +160,24 @@ public class Exercise4Fragment extends BaseFragment {
     private void startComputation() {
         for (int i = 0; i < mNumberOfThreads; i++) {
 
-            final int threadIndex = i;
+            final int threadIndex = i; // happens-before relationship with new thread
 
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    long rangeStart = mThreadsComputationRanges[threadIndex].start;
-                    long rangeEnd = mThreadsComputationRanges[threadIndex].end;
-                    BigInteger product = new BigInteger("1");
-                    for (long num = rangeStart; num <= rangeEnd; num++) {
-                        if (isTimedOut()) {
-                            break;
+                    synchronized (LOCK) {
+                        long rangeStart = mThreadsComputationRanges[threadIndex].start;
+                        long rangeEnd = mThreadsComputationRanges[threadIndex].end;
+                        BigInteger product = new BigInteger("1");
+                        for (long num = rangeStart; num <= rangeEnd; num++) {
+                            if (isTimedOut()) {
+                                break;
+                            }
+                            product = product.multiply(new BigInteger(String.valueOf(num)));
                         }
-                        product = product.multiply(new BigInteger(String.valueOf(num)));
+                        results.set(threadIndex, product);
+                        mNumOfFinishedThreads++;
                     }
-                    mThreadsComputationResults[threadIndex] = product;
-                    mNumOfFinishedThreads++;
                 }
             }).start();
 
@@ -231,7 +239,7 @@ public class Exercise4Fragment extends BaseFragment {
             if (isTimedOut()) {
                 break;
             }
-            result = result.multiply(mThreadsComputationResults[i]);
+            result = result.multiply(results.get(i));
         }
         return result;
     }
