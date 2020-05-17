@@ -3,7 +3,6 @@ package com.techyourchance.multithreading.exercises.exercise5;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -16,7 +15,9 @@ import com.techyourchance.multithreading.R;
 import com.techyourchance.multithreading.common.BaseFragment;
 
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Queue;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -41,6 +42,8 @@ public class Exercise5Fragment extends BaseFragment {
     private final Handler mUiHandler = new Handler(Looper.getMainLooper());
 
     private final MyBlockingQueue mBlockingQueue = new MyBlockingQueue(BLOCKING_QUEUE_CAPACITY);
+//    private final BlockingQueue mBlockingQueue = new BlockingQueue(BLOCKING_QUEUE_CAPACITY);
+
 
     private int mNumOfFinishedConsumers;
 
@@ -133,6 +136,11 @@ public class Exercise5Fragment extends BaseFragment {
                     return;
                 }
                 mBlockingQueue.put(index);
+//                try {
+//                    mBlockingQueue.put(index);
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
             }
         }).start();
     }
@@ -141,7 +149,13 @@ public class Exercise5Fragment extends BaseFragment {
         new Thread(new Runnable() {
             @Override
             public void run() {
-                int message = mBlockingQueue.take();
+                int message = 0;
+                message = mBlockingQueue.take();
+//                try {
+//                    message = mBlockingQueue.take();
+//                } catch (InterruptedException e) {
+//                    e.printStackTrace();
+//                }
                 synchronized (LOCK) {
                     if (message != -1) {
                         mNumOfReceivedMessages++;
@@ -188,10 +202,20 @@ public class Exercise5Fragment extends BaseFragment {
          *
          * @param number the element to add
          */
-        public void put(int number) {
+        public synchronized void put(int number) {
+            while(mCurrentSize == mCapacity) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
             if (mCurrentSize < mCapacity) {
                 mQueue.offer(number);
                 mCurrentSize++;
+                if(mCurrentSize == 1) {
+                    notifyAll();
+                }
             }
         }
 
@@ -201,7 +225,17 @@ public class Exercise5Fragment extends BaseFragment {
          *
          * @return the head of this queue
          */
-        public int take() {
+        public synchronized int take() {
+            while(mCurrentSize == 0) {
+                try {
+                    wait();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+            if(mCurrentSize == mCapacity) {
+                notifyAll();
+            }
             if (mCurrentSize > 0) {
                 mCurrentSize--;
                 Integer message = mQueue.poll();
@@ -209,8 +243,45 @@ public class Exercise5Fragment extends BaseFragment {
                     return message;
                 }
             }
-
             return -1;
         }
     }
+
+    //from http://tutorials.jenkov.com/java-concurrency/blocking-queues.html
+//    public static class BlockingQueue {
+//
+//        private List<Integer> queue = new LinkedList();
+//        private int  limit = 10;
+//
+//        public BlockingQueue(int limit){
+//            this.limit = limit;
+//        }
+//
+//
+//        public synchronized void put(int item)
+//                throws InterruptedException  {
+//            while(this.queue.size() == this.limit) {
+//                wait();
+//            }
+//            this.queue.add(item);
+//            if(this.queue.size() == 1) {
+//                notifyAll();
+//            }
+//        }
+//
+//
+//        public synchronized int take()
+//                throws InterruptedException{
+//            while(this.queue.size() == 0){
+//                wait();
+//            }
+//            if(this.queue.size() == this.limit){
+//                notifyAll();
+//            }
+//
+//            return this.queue.remove(0);
+//        }
+//
+//    }
+
 }
