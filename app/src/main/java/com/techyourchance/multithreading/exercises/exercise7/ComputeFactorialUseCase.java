@@ -1,13 +1,13 @@
 package com.techyourchance.multithreading.exercises.exercise7;
 
 import android.os.Handler;
-import android.os.Looper;
+
+import androidx.annotation.WorkerThread;
 
 import com.techyourchance.multithreading.common.BaseObservable;
 
 import java.math.BigInteger;
-
-import androidx.annotation.WorkerThread;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseCase.Listener> {
 
@@ -19,7 +19,9 @@ public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseC
 
     private final Object LOCK = new Object();
 
-    private final Handler mUiHandler = new Handler(Looper.getMainLooper());
+    private final Handler mUiHandler;
+
+    private final ThreadPoolExecutor threadPoolExecutor;
 
     private int mNumberOfThreads;
     private ComputationRange[] mThreadsComputationRanges;
@@ -29,6 +31,11 @@ public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseC
     private long mComputationTimeoutTime;
 
     private boolean mAbortComputation;
+
+    public ComputeFactorialUseCase(Handler handler, ThreadPoolExecutor threadPoolExecutor) {
+        this.mUiHandler = handler;
+        this.threadPoolExecutor = threadPoolExecutor;
+    }
 
     @Override
     protected void onLastListenerUnregistered() {
@@ -40,12 +47,12 @@ public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseC
     }
 
     public void computeFactorialAndNotify(final int argument, final int timeout) {
-        new Thread(() -> {
+        threadPoolExecutor.execute(() -> {
             initComputationParams(argument, timeout);
             startComputation();
             waitForThreadsResultsOrTimeoutOrAbort();
             processComputationResults();
-        }).start();
+        });
     }
 
     private void initComputationParams(int factorialArgument, int timeout) {
@@ -88,7 +95,7 @@ public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseC
 
             final int threadIndex = i;
 
-            new Thread(() -> {
+            threadPoolExecutor.execute(() -> {
                 long rangeStart = mThreadsComputationRanges[threadIndex].start;
                 long rangeEnd = mThreadsComputationRanges[threadIndex].end;
                 BigInteger product = new BigInteger("1");
@@ -104,8 +111,7 @@ public class ComputeFactorialUseCase extends BaseObservable<ComputeFactorialUseC
                     mNumOfFinishedThreads++;
                     LOCK.notifyAll();
                 }
-
-            }).start();
+            });
         }
     }
 
