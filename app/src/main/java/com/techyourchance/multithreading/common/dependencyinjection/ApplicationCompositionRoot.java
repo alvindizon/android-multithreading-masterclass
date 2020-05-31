@@ -8,6 +8,8 @@ import com.techyourchance.fragmenthelper.FragmentContainerWrapper;
 import com.techyourchance.fragmenthelper.FragmentHelper;
 import com.techyourchance.multithreading.common.ScreensNavigator;
 import com.techyourchance.multithreading.common.ToolbarManipulator;
+import com.techyourchance.threadposter.BackgroundThreadPoster;
+import com.techyourchance.threadposter.UiThreadPoster;
 
 import java.util.concurrent.SynchronousQueue;
 import java.util.concurrent.ThreadFactory;
@@ -19,6 +21,8 @@ import androidx.fragment.app.FragmentActivity;
 public class ApplicationCompositionRoot {
 
     private ThreadPoolExecutor mThreadPoolExecutor;
+    private UiThreadPoster uiThreadPoster;
+    private BackgroundThreadPoster backgroundThreadPoster;
 
     public ThreadPoolExecutor getThreadPool() {
         if (mThreadPoolExecutor == null) {
@@ -44,5 +48,19 @@ public class ApplicationCompositionRoot {
             );
         }
         return mThreadPoolExecutor;
+    }
+
+    public UiThreadPoster getUiThreadPoster() {
+        if(uiThreadPoster == null) {
+            uiThreadPoster = new UiThreadPoster();
+        }
+        return uiThreadPoster;
+    }
+
+    public BackgroundThreadPoster getBackgroundThreadPoster() {
+        if(backgroundThreadPoster == null) {
+            backgroundThreadPoster = new BackgroundThreadPoster();
+        }
+        return backgroundThreadPoster;
     }
 }
